@@ -1,14 +1,11 @@
 #!/usr/bin/env node
+
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-  ErrorCode,
-  McpError
-} from '@modelcontextprotocol/sdk/types.js';
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import dotenv from 'dotenv';
-import { AirwallexClient } from './client.js';
+
+// Import all tools
 import { authenticationTools } from './tools/authentication.js';
 import { accountTools } from './tools/accounts.js';
 import { balanceTools } from './tools/balances.js';
@@ -19,24 +16,17 @@ import { transferTools } from './tools/transfers.js';
 // Load environment variables
 dotenv.config();
 
-// Validate required environment variables
-const requiredEnvVars = ['AIRWALLEX_CLIENT_ID', 'AIRWALLEX_API_KEY'];
-for (const envVar of requiredEnvVars) {
-  if (!process.env[envVar]) {
-    console.error(`Error: ${envVar} is required in environment variables`);
-    process.exit(1);
-  }
-}
+// Combine all tools
+const allTools = [
+  ...authenticationTools,
+  ...accountTools,
+  ...balanceTools,
+  ...paymentTools,
+  ...fxTools,
+  ...transferTools,
+];
 
-// Initialize Airwallex client
-const airwallexClient = new AirwallexClient({
-  clientId: process.env.AIRWALLEX_CLIENT_ID,
-  apiKey: process.env.AIRWALLEX_API_KEY,
-  environment: process.env.AIRWALLEX_ENVIRONMENT || 'demo',
-  baseUrl: process.env.AIRWALLEX_BASE_URL
-});
-
-// Create MCP server
+// Create server instance
 const server = new Server(
   {
     name: 'airwallex-mcp',
@@ -49,17 +39,7 @@ const server = new Server(
   }
 );
 
-// Combine all tools
-const allTools = [
-  ...authenticationTools,
-  ...accountTools,
-  ...balanceTools,
-  ...paymentTools,
-  ...fxTools,
-  ...transferTools
-];
-
-// Handle list tools request
+// Handle tool listing
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: allTools.map(tool => ({
@@ -76,20 +56,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   
   const tool = allTools.find(t => t.name === name);
   if (!tool) {
-    throw new McpError(
-      ErrorCode.MethodNotFound,
-      `Tool ${name} not found`
-    );
+    throw new Error(`Tool "${name}" not found`);
   }
   
   try {
-    // Ensure client is authenticated before making API calls
-    if (name !== 'airwallex_authenticate' && !airwallexClient.isAuthenticated()) {
-      await airwallexClient.authenticate();
-    }
-    
-    const result = await tool.handler(airwallexClient, args);
-    
+    const result = await tool.handler(args);
     return {
       content: [
         {
@@ -99,19 +70,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       ],
     };
   } catch (error) {
-    console.error(`Error executing tool ${name}:`, error);
-    
-    if (error.response?.data) {
-      throw new McpError(
-        ErrorCode.InternalError,
-        `Airwallex API error: ${JSON.stringify(error.response.data)}`
-      );
-    }
-    
-    throw new McpError(
-      ErrorCode.InternalError,
-      `Error executing tool: ${error.message}`
-    );
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Error: ${error.message}`,
+        },
+      ],
+      isError: true,
+    };
   }
 });
 
@@ -119,7 +86,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('Airwallex MCP server started');
+  console.error('Airwallex MCP server running...');
 }
 
 main().catch((error) => {
