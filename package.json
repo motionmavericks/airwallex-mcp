@@ -1,0 +1,30 @@
+{
+  "name": "@motionmavericks/airwallex-mcp",
+  "version": "1.0.0",
+  "description": "Airwallex MCP server for Claude Code - manage payments, accounts, FX, and transfers",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node tests/test-auth.js",
+    "test:auth": "node tests/test-auth.js"
+  },
+  "keywords": [
+    "mcp",
+    "airwallex",
+    "payments",
+    "fx",
+    "banking"
+  ],
+  "author": "Motion Mavericks",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "axios": "^1.7.2",
+    "dotenv": "^16.4.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
