@@ -1,107 +1,93 @@
+import { getClient } from '../client.js';
+
 export const balanceTools = [
   {
-    name: 'airwallex_get_current_balances',
-    description: 'Get current balances for all currencies in the account',
+    name: 'airwallex_get_balances',
+    description: 'Get all currency balances for the account',
     inputSchema: {
       type: 'object',
-      properties: {},
+      properties: {
+        page_num: {
+          type: 'integer',
+          description: 'Page number (0-based)',
+          default: 0,
+        },
+        page_size: {
+          type: 'integer',
+          description: 'Number of results per page',
+          default: 50,
+        },
+      },
     },
-    handler: async (client) => {
-      const balances = await client.get('/balances/current');
+    handler: async (args) => {
+      const client = getClient();
+      const balances = await client.get('/balances', {
+        page_num: args.page_num || 0,
+        page_size: args.page_size || 50,
+      });
       return balances;
     },
   },
   {
-    name: 'airwallex_get_balance_history',
-    description: 'Get balance history for the account with optional date range (max 7 days)',
+    name: 'airwallex_get_balance',
+    description: 'Get balance for a specific currency',
     inputSchema: {
       type: 'object',
       properties: {
         currency: {
           type: 'string',
-          description: 'Filter by specific currency (e.g., USD, EUR, AUD)',
-        },
-        from_created_at: {
-          type: 'string',
-          description: 'Start date in ISO 8601 format (e.g., 2024-01-01T00:00:00Z)',
-        },
-        to_created_at: {
-          type: 'string',
-          description: 'End date in ISO 8601 format (e.g., 2024-01-07T23:59:59Z)',
-        },
-        page_num: {
-          type: 'integer',
-          description: 'Page number for pagination (starts from 0)',
-          default: 0,
-        },
-        page_size: {
-          type: 'integer',
-          description: 'Number of results per page',
-          default: 20,
+          description: 'Currency code (e.g., USD, EUR, GBP)',
         },
       },
+      required: ['currency'],
     },
-    handler: async (client, args) => {
-      const params = {
-        page_num: args.page_num || 0,
-        page_size: args.page_size || 20,
-      };
-      
-      if (args.currency) params.currency = args.currency;
-      if (args.from_created_at) params.from_created_at = args.from_created_at;
-      if (args.to_created_at) params.to_created_at = args.to_created_at;
-      
-      const response = await client.get('/balances/history', params);
-      return response;
+    handler: async (args) => {
+      const client = getClient();
+      const balance = await client.get(`/balances/${args.currency}`);
+      return balance;
     },
   },
   {
-    name: 'airwallex_get_transactions',
-    description: 'Get transaction history for the account',
+    name: 'airwallex_get_balance_history',
+    description: 'Get balance history for a specific currency',
     inputSchema: {
       type: 'object',
       properties: {
         currency: {
           type: 'string',
-          description: 'Filter by specific currency',
-        },
-        transaction_type: {
-          type: 'string',
-          description: 'Filter by transaction type (e.g., payment, transfer, conversion)',
+          description: 'Currency code',
         },
         from_created_at: {
           type: 'string',
-          description: 'Start date in ISO 8601 format',
+          description: 'Start date (ISO 8601 format)',
         },
         to_created_at: {
           type: 'string',
-          description: 'End date in ISO 8601 format',
+          description: 'End date (ISO 8601 format)',
         },
         page_num: {
           type: 'integer',
-          description: 'Page number for pagination (starts from 0)',
           default: 0,
         },
         page_size: {
           type: 'integer',
-          description: 'Number of results per page',
-          default: 20,
+          default: 50,
         },
       },
+      required: ['currency'],
     },
-    handler: async (client, args) => {
+    handler: async (args) => {
+      const client = getClient();
       const params = {
         page_num: args.page_num || 0,
-        page_size: args.page_size || 20,
+        page_size: args.page_size || 50,
       };
       
-      if (args.currency) params.currency = args.currency;
-      if (args.transaction_type) params.transaction_type = args.transaction_type;
       if (args.from_created_at) params.from_created_at = args.from_created_at;
       if (args.to_created_at) params.to_created_at = args.to_created_at;
       
-      const response = await client.get('/financial_transactions', params);
-      return response;
+      const history = await client.get(`/balances/${args.currency}/history`, params);
+      return history;
     },
   },
 ];

@@ -1,7 +1,9 @@
+import { getClient } from '../client.js';
+
 export const paymentTools = [
   {
-    name: 'airwallex_create_payment_intent',
-    description: 'Create a payment intent to accept payments',
+    name: 'airwallex_create_payment',
+    description: 'Create a new payment',
     inputSchema: {
       type: 'object',
       properties: {
@@ -11,187 +13,142 @@ export const paymentTools = [
         },
         currency: {
           type: 'string',
-          description: 'Three-letter ISO currency code (e.g., USD, EUR)',
+          description: 'Currency code (e.g., USD, EUR)',
         },
-        merchant_order_id: {
+        beneficiary_id: {
           type: 'string',
-          description: 'Your unique order identifier',
+          description: 'ID of the beneficiary',
         },
-        request_id: {
+        reference: {
           type: 'string',
-          description: 'Unique request ID for idempotency',
+          description: 'Payment reference',
         },
-        customer_id: {
+        reason: {
           type: 'string',
-          description: 'ID of an existing customer',
+          description: 'Reason for payment',
         },
-        descriptor: {
+        source_account_id: {
           type: 'string',
-          description: 'Statement descriptor',
-        },
-        metadata: {
-          type: 'object',
-          description: 'Additional metadata as key-value pairs',
+          description: 'Source account ID (optional)',
         },
       },
-      required: ['amount', 'currency'],
+      required: ['amount', 'currency', 'beneficiary_id'],
     },
-    handler: async (client, args) => {
-      const data = {
-        amount: args.amount,
-        currency: args.currency,
-        merchant_order_id: args.merchant_order_id,
-      };
-      
-      if (args.request_id) data.request_id = args.request_id;
-      if (args.customer_id) data.customer_id = args.customer_id;
-      if (args.descriptor) data.descriptor = args.descriptor;
-      if (args.metadata) data.metadata = args.metadata;
-      
-      const response = await client.post('/pa/payment_intents/create', data);
-      return response;
+    handler: async (args) => {
+      const client = getClient();
+      const payment = await client.post('/payments', {
+        payment_method: 'LOCAL',
+        ...args,
+      });
+      return payment;
     },
   },
   {
-    name: 'airwallex_get_payment_intent',
-    description: 'Retrieve details of a payment intent',
+    name: 'airwallex_get_payment',
+    description: 'Get payment details by ID',
     inputSchema: {
       type: 'object',
       properties: {
-        payment_intent_id: {
+        payment_id: {
           type: 'string',
-          description: 'The ID of the payment intent',
+          description: 'Payment ID',
         },
       },
-      required: ['payment_intent_id'],
+      required: ['payment_id'],
     },
-    handler: async (client, args) => {
-      const response = await client.get(`/pa/payment_intents/${args.payment_intent_id}`);
-      return response;
-    },
-  },
-  {
-    name: 'airwallex_confirm_payment_intent',
-    description: 'Confirm a payment intent',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        payment_intent_id: {
-          type: 'string',
-          description: 'The ID of the payment intent to confirm',
-        },
-        request_id: {
-          type: 'string',
-          description: 'Unique request ID for idempotency',
-        },
-        payment_method_id: {
-          type: 'string',
-          description: 'ID of the payment method to use',
-        },
-        payment_method_options: {
-          type: 'object',
-          description: 'Payment method specific options',
-        },
-      },
-      required: ['payment_intent_id'],
-    },
-    handler: async (client, args) => {
-      const data = {};
-      
-      if (args.request_id) data.request_id = args.request_id;
-      if (args.payment_method_id) data.payment_method_id = args.payment_method_id;
-      if (args.payment_method_options) data.payment_method_options = args.payment_method_options;
-      
-      const response = await client.post(`/pa/payment_intents/${args.payment_intent_id}/confirm`, data);
-      return response;
+    handler: async (args) => {
+      const client = getClient();
+      const payment = await client.get(`/payments/${args.payment_id}`);
+      return payment;
     },
   },
   {
     name: 'airwallex_list_payments',
-    description: 'List all payments with optional filters',
+    description: 'List payments with optional filters',
     inputSchema: {
       type: 'object',
       properties: {
+        status: {
+          type: 'string',
+          description: 'Payment status filter',
+          enum: ['PENDING', 'CONFIRMED', 'PROCESSING', 'COMPLETED', 'FAILED', 'CANCELLED'],
+        },
+        from_created_at: {
+          type: 'string',
+          description: 'Start date filter (ISO 8601)',
+        },
+        to_created_at: {
+          type: 'string',
+          description: 'End date filter (ISO 8601)',
+        },
         page_num: {
           type: 'integer',
-          description: 'Page number (starts from 0)',
           default: 0,
         },
         page_size: {
           type: 'integer',
-          description: 'Number of results per page',
-          default: 20,
-        },
-        status: {
-          type: 'string',
-          description: 'Filter by payment status',
-        },
-        from_created_at: {
-          type: 'string',
-          description: 'Filter payments created after this date (ISO 8601)',
-        },
-        to_created_at: {
-          type: 'string',
-          description: 'Filter payments created before this date (ISO 8601)',
+          default: 50,
         },
       },
     },
-    handler: async (client, args) => {
+    handler: async (args) => {
+      const client = getClient();
       const params = {
         page_num: args.page_num || 0,
-        page_size: args.page_size || 20,
+        page_size: args.page_size || 50,
       };
       
       if (args.status) params.status = args.status;
       if (args.from_created_at) params.from_created_at = args.from_created_at;
       if (args.to_created_at) params.to_created_at = args.to_created_at;
       
-      const response = await client.get('/pa/payments', params);
-      return response;
+      const payments = await client.get('/payments', params);
+      return payments;
     },
   },
   {
-    name: 'airwallex_refund_payment',
-    description: 'Create a refund for a payment',
+    name: 'airwallex_confirm_payment',
+    description: 'Confirm a pending payment',
     inputSchema: {
       type: 'object',
       properties: {
-        payment_intent_id: {
+        payment_id: {
           type: 'string',
-          description: 'The ID of the payment intent to refund',
+          description: 'Payment ID to confirm',
         },
-        amount: {
-          type: 'number',
-          description: 'Amount to refund (optional, defaults to full amount)',
+      },
+      required: ['payment_id'],
+    },
+    handler: async (args) => {
+      const client = getClient();
+      const result = await client.post(`/payments/${args.payment_id}/confirm`);
+      return result;
+    },
+  },
+  {
+    name: 'airwallex_cancel_payment',
+    description: 'Cancel a payment',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        payment_id: {
+          type: 'string',
+          description: 'Payment ID to cancel',
         },
         reason: {
           type: 'string',
-          description: 'Reason for the refund',
-        },
-        request_id: {
-          type: 'string',
-          description: 'Unique request ID for idempotency',
-        },
-        metadata: {
-          type: 'object',
-          description: 'Additional metadata',
+          description: 'Cancellation reason',
         },
       },
-      required: ['payment_intent_id'],
+      required: ['payment_id'],
     },
-    handler: async (client, args) => {
+    handler: async (args) => {
+      const client = getClient();
       const data = {};
-      
-      if (args.amount) data.amount = args.amount;
       if (args.reason) data.reason = args.reason;
-      if (args.request_id) data.request_id = args.request_id;
-      if (args.metadata) data.metadata = args.metadata;
       
-      const response = await client.post(`/pa/refunds/create`, {
-        payment_intent_id: args.payment_intent_id,
-        ...data,
-      });
-      return response;
+      const result = await client.post(`/payments/${args.payment_id}/cancel`, data);
+      return result;
     },
   },
 ];
